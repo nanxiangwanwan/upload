@@ -118,8 +118,8 @@ This allows IP and signature checks before parsing a potentially large request b
 
 ## 上传签名 / Upload signature
 
-上传时，签名针对**目标目录**，不包含最终随机文件名。  
-For upload requests, the signature covers the **destination directory**, not the random final filename.
+上传签名规则固定为 `MD5_KEY + RESTIME + RESPATH`，不包含最终随机文件名。  
+The upload signature is fixed as `MD5_KEY + RESTIME + RESPATH` and does not include the random final filename.
 
 ### 有 RESPATH / With RESPATH
 
@@ -140,8 +140,11 @@ abc1231786660000users/avatar
 公式 / Formula:
 
 ```text
-RESSIGN = lowercase_hex(md5(MD5_KEY + RESTIME + CLEAN_RESPATH_DIRECTORY))
+RESSIGN = lowercase_hex(md5(MD5_KEY + RESTIME + RESPATH))
 ```
+
+> **重要 / Important**：上传验签使用 Header 中的 `RESPATH` 值（去掉首尾空格）直接参与 MD5；文件系统安全检查与路径清理在验签通过后单独进行。上传签名不会复用静态资源的 URL 路径规则。  
+> Upload verification signs the `RESPATH` Header value directly (after trimming surrounding whitespace). Filesystem normalization is a separate step after authentication. Upload signing never reuses the static-resource URL-path rule.
 
 ### 没有 RESPATH / Without RESPATH
 
@@ -245,24 +248,41 @@ curl -X POST 'http://127.0.0.1:8080/upload' \
 
 ## 静态资源签名 / Static-resource signature
 
-静态资源访问使用**最终完整资源相对路径**参与签名。  
-Static-resource access signs the **final full resource-relative path**.
+静态资源访问使用**最终完整 URL 资源路径**参与签名，必须包含 `/res/` 前缀。  
+Static-resource access signs the **final full resource URL path**, including the `/res/` prefix.
+
+上传签名和访问签名完全独立。静态资源签名不使用 `RESPATH`；查询参数 `?time=...&sign=...` 也不参与 MD5。  
+Upload and resource signatures are fully independent. Static-resource signing does not use `RESPATH`; query parameters such as `?time=...&sign=...` are not included in the MD5 input.
 
 例如文件 / For this file:
 
 ```text
-users/avatar/93f26c0d8fe6407daa89241e72c7e815.jpg
+/res/users/avatar/93f26c0d8fe6407daa89241e72c7e815.jpg
 ```
 
 公式 / Formula:
 
 ```text
-RESSIGN = lowercase_hex(md5(MD5_KEY + RESTIME + FINAL_RESOURCE_PATH))
+RESSIGN = lowercase_hex(md5(MD5_KEY + RESTIME + FINAL_RESOURCE_URL_PATH))
+```
+
+例如 / Example:
+
+```text
+MD5_KEY=abc123
+RESTIME=1786660000
+FINAL_RESOURCE_URL_PATH=/res/users/avatar/93f26c0d8fe6407daa89241e72c7e815.jpg
+
+参与 MD5 的字符串 / Raw MD5 input:
+abc1231786660000/res/users/avatar/93f26c0d8fe6407daa89241e72c7e815.jpg
 ```
 
 请求 Header 模式 / Header mode:
 
 ```bash
+RESOURCE_PATH="/res/users/avatar/93f26c0d8fe6407daa89241e72c7e815.jpg"
+RESSIGN=$(printf '%s' "your-secret-key${RESTIME}${RESOURCE_PATH}" | md5sum | awk '{print $1}')
+
 curl \
   -H "RESTIME: ${RESTIME}" \
   -H "RESSIGN: ${RESSIGN}" \
@@ -397,7 +417,7 @@ dist/upload-windows-amd64.exe
 After uploading the matching `dist/` binary to a Gitee Release, use `install.sh`:
 
 ```bash
-curl -fsSL https://gitee.com/cocosnodejs/upload/raw/master/install.sh | VERSION=v1.2.0 sh
+curl -fsSL https://gitee.com/cocosnodejs/upload/raw/master/install.sh | VERSION=v1.2.2 sh
 ```
 
 默认安装到 / Default install destination:

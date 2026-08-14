@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-VERSION="${VERSION:-1.2.0}"
+VERSION="${VERSION:-1.2.2}"
 mkdir -p dist
 
 build() {
