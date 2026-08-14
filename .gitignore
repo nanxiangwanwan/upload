@@ -1,0 +1,5 @@
+.env
+res/
+dist/
+upload
+*.zip
