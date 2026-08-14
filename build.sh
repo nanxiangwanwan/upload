@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 
-VERSION="${VERSION:-1.2.2}"
+VERSION="${VERSION:-1.4.0}"
+rm -rf dist
 mkdir -p dist
 
 build() {
@@ -18,5 +19,14 @@ build darwin amd64
 build darwin arm64
 build windows amd64
 mv dist/upload-windows-amd64 dist/upload-windows-amd64.exe
+
+(
+  cd dist
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum upload-* > SHA256SUMS
+  else
+    shasum -a 256 upload-* > SHA256SUMS
+  fi
+)
 
 echo "done: v${VERSION}"
