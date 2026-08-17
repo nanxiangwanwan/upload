@@ -101,14 +101,14 @@ RESPATH: users/avatar
 签名规则固定为：
 
 ```text
-RESSIGN = md5(MD5_KEY + RESTIME + RESPATH)
+RESSIGN = md5(MD5_KEY + RESTIME)
 ```
 
 其中：
 
 - `RESTIME` 是**上传请求时间**。
 - 服务端使用 `TIME_EXPIRE` 校验请求时间与当前时间的误差。
-- `RESPATH` 是目标目录，可不传；签名时使用 Header 值去除首尾空格后的字符串。
+- `RESPATH` 是目标目录，可不传；只用于决定文件保存目录，不参与签名。
 - `/upload` 会验证 **IP 白名单 + 时间 + 签名**。
 - 文件放在 `multipart/form-data` 的 `file` 字段。
 
@@ -118,7 +118,7 @@ RESSIGN = md5(MD5_KEY + RESTIME + RESPATH)
 MD5_KEY='your-secret-key'
 RESTIME=$(date +%s)
 RESPATH='users/avatar'
-RESSIGN=$(printf '%s' "${MD5_KEY}${RESTIME}${RESPATH}" | md5sum | awk '{print $1}')
+RESSIGN=$(printf '%s' "${MD5_KEY}${RESTIME}" | md5sum | awk '{print $1}')
 
 curl -X POST 'http://127.0.0.1:8080/upload' \
   -H "RESTIME: ${RESTIME}" \
