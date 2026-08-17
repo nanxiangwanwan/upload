@@ -238,6 +238,32 @@ func TestResourceRejectsPathBasedSignature(t *testing.T) {
 	}
 }
 
+func TestCORSAllowsAllOriginsAndPreflight(t *testing.T) {
+	called := false
+	handler := cors(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	req := httptest.NewRequest(http.MethodOptions, "/upload", nil)
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	req.Header.Set("Access-Control-Request-Headers", "RESTIME, RESSIGN, RESPATH, Content-Type")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status=%d want=%d", rr.Code, http.StatusNoContent)
+	}
+	if called {
+		t.Fatal("preflight request should not reach the application handler")
+	}
+	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("Access-Control-Allow-Origin=%q want=*", got)
+	}
+	if got := rr.Header().Get("Access-Control-Allow-Headers"); got != "*" {
+		t.Fatalf("Access-Control-Allow-Headers=%q want=*", got)
+	}
+}
+
 func TestBuildConfigUsesWorkingDirectoryRes(t *testing.T) {
 	oldWD, err := os.Getwd()
 	if err != nil {
