@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const version = "1.4.0"
+const version = "1.5.0"
 
 const defaultEnvTemplate = `# ==========================================
 # 上传配置文件
@@ -90,28 +90,34 @@ type Response struct {
 // main 是程序入口，负责解析命令行参数并启动 HTTP 服务。
 func main() {
 	args := os.Args[1:]
-	if len(args) > 0 {
-		switch args[0] {
-		case "version":
-			fmt.Printf("upload v%s\n", version)
-			return
-		case "config":
-			printConfigHelp()
-			return
-		case "init":
-			path := ".env"
-			if len(args) > 1 && strings.TrimSpace(args[1]) != "" {
-				path = args[1]
-			}
-			if err := writeDefaultConfig(path); err != nil {
-				log.Fatalf("生成配置失败: %v", err)
-			}
-			fmt.Printf("已生成默认配置: %s\n", path)
-			fmt.Println("请先修改 MD5_KEY，然后执行: upload start -config " + path)
-			return
-		case "start":
-			args = args[1:]
+	if len(args) == 0 {
+		printConfigHelp()
+		return
+	}
+
+	switch args[0] {
+	case "version":
+		fmt.Printf("upload v%s\n", version)
+		return
+	case "config":
+		printConfigHelp()
+		return
+	case "init":
+		path := ".env"
+		if len(args) > 1 && strings.TrimSpace(args[1]) != "" {
+			path = args[1]
 		}
+		if err := writeDefaultConfig(path); err != nil {
+			log.Fatalf("生成配置失败: %v", err)
+		}
+		fmt.Printf("已生成默认配置: %s\n", path)
+		fmt.Println("请先修改 MD5_KEY，然后执行: upload start -config " + path)
+		return
+	case "start":
+		args = args[1:]
+	default:
+		printConfigHelp()
+		return
 	}
 
 	fs := flag.NewFlagSet("upload", flag.ExitOnError)
