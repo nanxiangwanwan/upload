@@ -15,6 +15,7 @@ import (
 	"time"
 )
 
+// TestSafeTarget 验证路径清洗逻辑会保留合法路径，同时拒绝目录穿越。
 func TestSafeTarget(t *testing.T) {
 	root := t.TempDir()
 	rel, target, err := safeTarget(root, "images/a.png")
@@ -22,28 +23,30 @@ func TestSafeTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	if rel != "images/a.png" {
-		t.Fatalf("unexpected rel: %q", rel)
+		t.Fatalf("实际 rel: %q", rel)
 	}
 	want := filepath.Join(root, "images", "a.png")
 	if target != want {
-		t.Fatalf("target=%q want=%q", target, want)
+		t.Fatalf("target=%q 期望=%q", target, want)
 	}
 	if _, _, err := safeTarget(root, "../escape.txt"); err == nil {
-		t.Fatal("expected traversal path to be rejected")
+		t.Fatal("越界路径应被拒绝")
 	}
 }
 
+// TestParseTypesDefaultsToAll 验证空配置时默认允许所有扩展名。
 func TestParseTypesDefaultsToAll(t *testing.T) {
 	_, all := parseTypes("")
 	if !all {
-		t.Fatal("empty UPLOAD_TYPES should allow all")
+		t.Fatal("空 UPLOAD_TYPES 应允许全部类型")
 	}
 	types, all := parseTypes("jpg,.png")
 	if all || !types[".jpg"] || !types[".png"] {
-		t.Fatalf("unexpected parsed types: %#v all=%v", types, all)
+		t.Fatalf("解析结果异常: %#v all=%v", types, all)
 	}
 }
 
+// TestUploadRejectsNonWhitelistedIP 验证不在白名单中的 IP 会被拒绝。
 func TestUploadRejectsNonWhitelistedIP(t *testing.T) {
 	app := &App{cfg: Config{IPWhitelist: map[string]bool{"127.0.0.1": true}}}
 	req := httptest.NewRequest(http.MethodPost, "/upload", nil)
@@ -51,10 +54,11 @@ func TestUploadRejectsNonWhitelistedIP(t *testing.T) {
 	rr := httptest.NewRecorder()
 	app.handleUpload(rr, req)
 	if rr.Code != http.StatusForbidden {
-		t.Fatalf("status=%d want=%d body=%s", rr.Code, http.StatusForbidden, rr.Body.String())
+		t.Fatalf("状态=%d 期望=%d 响应=%s", rr.Code, http.StatusForbidden, rr.Body.String())
 	}
 }
 
+// newUploadRequest 构造带文件和签名的上传请求，用于测试上传接口行为。
 func newUploadRequest(t *testing.T, fileName string, content []byte, ts, sign, resPath string) *http.Request {
 	t.Helper()
 	var body bytes.Buffer
@@ -80,6 +84,7 @@ func newUploadRequest(t *testing.T, fileName string, content []byte, ts, sign, r
 	return req
 }
 
+// testApp 创建测试用 App 实例，提供固定配置用于 HTTP 行为测试。
 func testApp(root string) *App {
 	return &App{cfg: Config{
 		Root:          root,
@@ -91,6 +96,7 @@ func testApp(root string) *App {
 	}}
 }
 
+// decodeUploadPath 从上传响应中解析返回的资源访问路径。
 func decodeUploadPath(t *testing.T, rr *httptest.ResponseRecorder) string {
 	t.Helper()
 	var out struct {
@@ -101,14 +107,15 @@ func decodeUploadPath(t *testing.T, rr *httptest.ResponseRecorder) string {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
-		t.Fatalf("decode response: %v body=%s", err, rr.Body.String())
+		t.Fatalf("解码响应失败: %v body=%s", err, rr.Body.String())
 	}
 	if out.Code != 0 || out.Data.Path == "" {
-		t.Fatalf("unexpected response: %s", rr.Body.String())
+		t.Fatalf("响应异常: %s", rr.Body.String())
 	}
 	return out.Data.Path
 }
 
+// TestUploadUsesResPathAsDirectoryAndRandomName 验证 RESPATH 会作为存储目录，并生成随机文件名。
 func TestUploadUsesResPathAsDirectoryAndRandomName(t *testing.T) {
 	root := t.TempDir()
 	app := testApp(root)
@@ -119,19 +126,39 @@ func TestUploadUsesResPathAsDirectoryAndRandomName(t *testing.T) {
 	rr := httptest.NewRecorder()
 	app.handleUpload(rr, req)
 	if rr.Code != http.StatusOK {
-		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+		t.Fatalf("状态=%d 响应=%s", rr.Code, rr.Body.String())
 	}
 	p := decodeUploadPath(t, rr)
 	if !regexp.MustCompile(`^/res/users/avatar/[0-9a-f]{32}\.jpg$`).MatchString(p) {
-		t.Fatalf("unexpected random path: %q", p)
+		t.Fatalf("随机路径异常: %q", p)
 	}
 	rel := strings.TrimPrefix(p, "/res/")
 	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
 	if err != nil || string(b) != "hello" {
-		t.Fatalf("saved file mismatch err=%v content=%q", err, string(b))
+		t.Fatalf("保存结果异常 err=%v content=%q", err, string(b))
 	}
 }
 
+// TestUploadReportsRequestBodyTooLarge 验证请求体过大时返回 413 并提示文件过大。
+func TestUploadReportsRequestBodyTooLarge(t *testing.T) {
+	root := t.TempDir()
+	app := testApp(root)
+	app.cfg.MaxUploadSize = 16
+	ts := formatUnixNow()
+	sign := md5Hex(app.cfg.MD5Key + ts)
+	content := bytes.Repeat([]byte("x"), 2*1024*1024)
+	req := newUploadRequest(t, "large.png", content, ts, sign, "gameico")
+	rr := httptest.NewRecorder()
+	app.handleUpload(rr, req)
+	if rr.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("状态=%d 期望=%d 响应=%s", rr.Code, http.StatusRequestEntityTooLarge, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "文件过大") {
+		t.Fatalf("响应体异常: %s", rr.Body.String())
+	}
+}
+
+// TestUploadWithoutResPathUsesRestimeDirectory 验证未指定 RESPATH 时使用 RESTIME 目录。
 func TestUploadWithoutResPathUsesRestimeDirectory(t *testing.T) {
 	root := t.TempDir()
 	app := testApp(root)
@@ -141,15 +168,16 @@ func TestUploadWithoutResPathUsesRestimeDirectory(t *testing.T) {
 	rr := httptest.NewRecorder()
 	app.handleUpload(rr, req)
 	if rr.Code != http.StatusOK {
-		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+		t.Fatalf("状态=%d 响应=%s", rr.Code, rr.Body.String())
 	}
 	p := decodeUploadPath(t, rr)
 	want := regexp.MustCompile(`^/res/` + regexp.QuoteMeta(ts) + `/[0-9a-f]{32}\.pdf$`)
 	if !want.MatchString(p) {
-		t.Fatalf("path=%q does not use RESTIME directory %q", p, ts)
+		t.Fatalf("路径=%q 未使用 RESTIME 目录 %q", p, ts)
 	}
 }
 
+// TestUploadRejectsWrongSignatureForDirectory 验证错误签名会被拒绝。
 func TestUploadRejectsWrongSignatureForDirectory(t *testing.T) {
 	root := t.TempDir()
 	app := testApp(root)
@@ -158,10 +186,11 @@ func TestUploadRejectsWrongSignatureForDirectory(t *testing.T) {
 	rr := httptest.NewRecorder()
 	app.handleUpload(rr, req)
 	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+		t.Fatalf("状态=%d 响应=%s", rr.Code, rr.Body.String())
 	}
 }
 
+// TestResourceUsesSharedExpirationSignature 验证资源访问能使用共享过期签名访问多个文件。
 func TestResourceUsesSharedExpirationSignature(t *testing.T) {
 	root := t.TempDir()
 	app := testApp(root)
@@ -183,16 +212,16 @@ func TestResourceUsesSharedExpirationSignature(t *testing.T) {
 	sign := md5Hex(app.cfg.MD5Key + expireTs)
 	for _, rel := range paths {
 		req := httptest.NewRequest(http.MethodGet, "/res/"+rel+"?time="+expireTs+"&sign="+sign, nil)
-		// Resource access must not enforce the upload IP whitelist.
 		req.RemoteAddr = "203.0.113.9:12345"
 		rr := httptest.NewRecorder()
 		app.handleResource(rr, req)
 		if rr.Code != http.StatusOK || rr.Body.String() != rel {
-			t.Fatalf("path=%s status=%d body=%q", rel, rr.Code, rr.Body.String())
+			t.Fatalf("路径=%s 状态=%d 响应=%q", rel, rr.Code, rr.Body.String())
 		}
 	}
 }
 
+// TestResourceExpiredReturnsExpiredMessage 验证过期资源返回中文过期提示。
 func TestResourceExpiredReturnsExpiredMessage(t *testing.T) {
 	root := t.TempDir()
 	app := testApp(root)
@@ -210,13 +239,14 @@ func TestResourceExpiredReturnsExpiredMessage(t *testing.T) {
 	rr := httptest.NewRecorder()
 	app.handleResource(rr, req)
 	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+		t.Fatalf("状态=%d 响应=%q", rr.Code, rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "resource access expired") {
-		t.Fatalf("unexpected body=%q", rr.Body.String())
+	if !strings.Contains(rr.Body.String(), "资源访问已过期") {
+		t.Fatalf("响应体异常=%q", rr.Body.String())
 	}
 }
 
+// TestResourceRejectsPathBasedSignature 验证携带路径信息的签名会被拒绝。
 func TestResourceRejectsPathBasedSignature(t *testing.T) {
 	root := t.TempDir()
 	app := testApp(root)
@@ -234,10 +264,11 @@ func TestResourceRejectsPathBasedSignature(t *testing.T) {
 	rr := httptest.NewRecorder()
 	app.handleResource(rr, req)
 	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+		t.Fatalf("状态=%d 响应=%q", rr.Code, rr.Body.String())
 	}
 }
 
+// TestCORSAllowsAllOriginsAndPreflight 验证 CORS 预检请求返回正确的跨域头信息。
 func TestCORSAllowsAllOriginsAndPreflight(t *testing.T) {
 	called := false
 	handler := cors(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -251,19 +282,20 @@ func TestCORSAllowsAllOriginsAndPreflight(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNoContent {
-		t.Fatalf("status=%d want=%d", rr.Code, http.StatusNoContent)
+		t.Fatalf("状态=%d 期望=%d", rr.Code, http.StatusNoContent)
 	}
 	if called {
-		t.Fatal("preflight request should not reach the application handler")
+		t.Fatal("预检请求不应到达应用处理器")
 	}
 	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Fatalf("Access-Control-Allow-Origin=%q want=*", got)
+		t.Fatalf("Access-Control-Allow-Origin=%q 期望=*", got)
 	}
 	if got := rr.Header().Get("Access-Control-Allow-Headers"); got != "*" {
-		t.Fatalf("Access-Control-Allow-Headers=%q want=*", got)
+		t.Fatalf("Access-Control-Allow-Headers=%q 期望=*", got)
 	}
 }
 
+// TestBuildConfigUsesWorkingDirectoryRes 验证默认资源目录位于当前工作目录下的 res 文件夹中。
 func TestBuildConfigUsesWorkingDirectoryRes(t *testing.T) {
 	oldWD, err := os.Getwd()
 	if err != nil {
@@ -280,11 +312,21 @@ func TestBuildConfigUsesWorkingDirectoryRes(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := filepath.Join(wd, "res")
-	if cfg.Root != want {
-		t.Fatalf("root=%q want=%q", cfg.Root, want)
+	gotReal, gotErr := filepath.EvalSymlinks(filepath.Dir(cfg.Root))
+	wantReal, wantErr := filepath.EvalSymlinks(filepath.Dir(want))
+	if gotErr == nil && wantErr == nil {
+		gotReal = filepath.Join(gotReal, filepath.Base(cfg.Root))
+		wantReal = filepath.Join(wantReal, filepath.Base(want))
+	} else {
+		gotReal = cfg.Root
+		wantReal = want
+	}
+	if gotReal != wantReal {
+		t.Fatalf("root=%q 期望=%q", cfg.Root, want)
 	}
 }
 
+// TestUploadSignatureDoesNotIncludeResPath 验证签名不包含 RESPATH 路径信息。
 func TestUploadSignatureDoesNotIncludeResPath(t *testing.T) {
 	root := t.TempDir()
 	app := testApp(root)
@@ -295,14 +337,15 @@ func TestUploadSignatureDoesNotIncludeResPath(t *testing.T) {
 	rr := httptest.NewRecorder()
 	app.handleUpload(rr, req)
 	if rr.Code != http.StatusOK {
-		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+		t.Fatalf("状态=%d 响应=%s", rr.Code, rr.Body.String())
 	}
 	p := decodeUploadPath(t, rr)
 	if !regexp.MustCompile(`^/res/users/avatar/[0-9a-f]{32}\.jpg$`).MatchString(p) {
-		t.Fatalf("unexpected normalized storage path: %q", p)
+		t.Fatalf("标准化后的存储路径异常: %q", p)
 	}
 }
 
+// TestUploadRejectsLegacyPathBasedSignature 验证旧版基于路径的签名会被拒绝。
 func TestUploadRejectsLegacyPathBasedSignature(t *testing.T) {
 	root := t.TempDir()
 	app := testApp(root)
@@ -313,15 +356,16 @@ func TestUploadRejectsLegacyPathBasedSignature(t *testing.T) {
 	rr := httptest.NewRecorder()
 	app.handleUpload(rr, req)
 	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("status=%d want=%d body=%s", rr.Code, http.StatusUnauthorized, rr.Body.String())
+		t.Fatalf("状态=%d 期望=%d 响应=%s", rr.Code, http.StatusUnauthorized, rr.Body.String())
 	}
 }
 
+// formatUnixNow 返回当前 Unix 时间戳字符串，供测试构造签名。
 func formatUnixNow() string {
 	return strconvFormatInt(time.Now().Unix())
 }
 
+// strconvFormatInt 将 int64 转成字符串，便于测试中生成时间戳。
 func strconvFormatInt(v int64) string {
-	// Kept tiny so tests stay focused on HTTP behavior.
 	return fmt.Sprintf("%d", v)
 }
