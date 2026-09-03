@@ -1,0 +1,45 @@
+name: Build dist
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "cmd/**"
+      - "go.mod"
+      - "build.sh"
+      - ".github/workflows/build-dist.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build all platforms
+        run: sh build.sh
+
+      - name: Commit dist
+        run: |
+          if git diff --quiet -- dist; then
+            echo "dist is already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist
+          git commit -m "build: update v1.6.0 binaries"
+          git push
