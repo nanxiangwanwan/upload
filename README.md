@@ -96,17 +96,19 @@ Header：
 RESTIME: 1786660000
 RESSIGN: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 RESPATH: users/avatar
+RESDATA: user-1001
 ```
 
 签名规则固定为：
 
 ```text
-RESSIGN = md5(MD5_KEY + RESTIME)
+RESSIGN = md5(MD5_KEY + RESTIME + RESDATA)
 ```
 
 其中：
 
 - `RESTIME` 是**上传请求时间**。
+- `RESDATA` 是可选业务数据；非空时必须原样追加到签名字符串。
 - 服务端使用 `TIME_EXPIRE` 校验请求时间与当前时间的误差。
 - `RESPATH` 是目标目录，可不传；只用于决定文件保存目录，不参与签名。
 - `/upload` 会验证 **IP 白名单 + 时间 + 签名**。
@@ -118,12 +120,14 @@ RESSIGN = md5(MD5_KEY + RESTIME)
 MD5_KEY='your-secret-key'
 RESTIME=$(date +%s)
 RESPATH='users/avatar'
-RESSIGN=$(printf '%s' "${MD5_KEY}${RESTIME}" | md5sum | awk '{print $1}')
+RESDATA='user-1001'
+RESSIGN=$(printf '%s' "${MD5_KEY}${RESTIME}${RESDATA}" | md5sum | awk '{print $1}')
 
 curl -X POST 'http://127.0.0.1:8080/upload' \
   -H "RESTIME: ${RESTIME}" \
   -H "RESSIGN: ${RESSIGN}" \
   -H "RESPATH: ${RESPATH}" \
+  -H "RESDATA: ${RESDATA}" \
   -F 'file=@./photo.jpg'
 ```
 
@@ -162,7 +166,7 @@ curl -X POST 'http://127.0.0.1:8080/upload' \
 资源访问签名：
 
 ```text
-RESSIGN = md5(MD5_KEY + RESTIME)
+RESSIGN = md5(MD5_KEY + RESTIME + data)
 ```
 
 这里的 `RESTIME` 不是请求时间，而是：
@@ -176,22 +180,23 @@ Resource access expiration time
 
 ```text
 RESTIME=1786663600
-RESSIGN=md5(MD5_KEY + "1786663600")
+data=user-1001
+RESSIGN=md5(MD5_KEY + "1786663600" + "user-1001")
 ```
 
 在 `RESTIME` 过期之前，这一组 `RESTIME + RESSIGN` 可以访问**所有 `/res/*` 资源**，不需要每个文件单独签名：
 
 ```text
-/res/user/head/a.jpg?time=1786663600&sign=xxxx
-/res/banner/b.jpg?time=1786663600&sign=xxxx
-/res/product/c.pdf?time=1786663600&sign=xxxx
+/res/user/head/a.jpg?time=1786663600&data=user-1001&sign=xxxx
+/res/banner/b.jpg?time=1786663600&data=user-1001&sign=xxxx
+/res/product/c.pdf?time=1786663600&data=user-1001&sign=xxxx
 ```
 
 资源访问：
 
 - **不验证 IP 白名单**，客户端可直接访问。
 - 验证 `RESTIME` 是否过期。
-- 验证 `RESSIGN = md5(MD5_KEY + RESTIME)`。
+- `data` 是可选业务数据；非空时验证 `RESSIGN = md5(MD5_KEY + RESTIME + data)`。
 - `TIME_EXPIRE` 不参与资源访问校验。
 - 同一组有效凭证可访问全部 `/res/*`。
 
@@ -205,7 +210,7 @@ RESSIGN: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 也支持 Query，方便 `<img>`、PDF、浏览器直接加载：
 
 ```text
-/res/user/head/a.jpg?time=1786663600&sign=xxxxxxxx
+/res/user/head/a.jpg?time=1786663600&data=user-1001&sign=xxxxxxxx
 ```
 
 如果当前 Unix 时间已经大于 `RESTIME`，返回：

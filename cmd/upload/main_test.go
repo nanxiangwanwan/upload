@@ -190,6 +190,30 @@ func TestUploadRejectsWrongSignatureForDirectory(t *testing.T) {
 	}
 }
 
+// TestUploadSignatureIncludesResData 验证非空 RESDATA 必须参与上传签名。
+func TestUploadSignatureIncludesResData(t *testing.T) {
+	root := t.TempDir()
+	app := testApp(root)
+	ts := formatUnixNow()
+	data := "user-1001"
+	sign := md5Hex(app.cfg.MD5Key + ts + data)
+	req := newUploadRequest(t, "a.png", []byte("x"), ts, sign, "images")
+	req.Header.Set("RESDATA", data)
+	rr := httptest.NewRecorder()
+	app.handleUpload(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("状态=%d 响应=%s", rr.Code, rr.Body.String())
+	}
+
+	badReq := newUploadRequest(t, "b.png", []byte("x"), ts, md5Hex(app.cfg.MD5Key+ts), "images")
+	badReq.Header.Set("RESDATA", data)
+	badRR := httptest.NewRecorder()
+	app.handleUpload(badRR, badReq)
+	if badRR.Code != http.StatusUnauthorized {
+		t.Fatalf("未包含 RESDATA 的签名状态=%d 期望=%d", badRR.Code, http.StatusUnauthorized)
+	}
+}
+
 // TestResourceUsesSharedExpirationSignature 验证资源访问能使用共享过期签名访问多个文件。
 func TestResourceUsesSharedExpirationSignature(t *testing.T) {
 	root := t.TempDir()
@@ -243,6 +267,36 @@ func TestResourceExpiredReturnsExpiredMessage(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "资源访问已过期") {
 		t.Fatalf("响应体异常=%q", rr.Body.String())
+	}
+}
+
+// TestResourceSignatureIncludesData 验证非空 data 必须参与资源访问签名。
+func TestResourceSignatureIncludesData(t *testing.T) {
+	root := t.TempDir()
+	app := testApp(root)
+	rel := "images/a.jpg"
+	abs := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(abs, []byte("image"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	expireTs := strconvFormatInt(time.Now().Add(time.Hour).Unix())
+	data := "user-1001"
+	sign := md5Hex(app.cfg.MD5Key + expireTs + data)
+	req := httptest.NewRequest(http.MethodGet, "/res/"+rel+"?time="+expireTs+"&data="+data+"&sign="+sign, nil)
+	rr := httptest.NewRecorder()
+	app.handleResource(rr, req)
+	if rr.Code != http.StatusOK || rr.Body.String() != "image" {
+		t.Fatalf("状态=%d 响应=%q", rr.Code, rr.Body.String())
+	}
+
+	badReq := httptest.NewRequest(http.MethodGet, "/res/"+rel+"?time="+expireTs+"&data="+data+"&sign="+md5Hex(app.cfg.MD5Key+expireTs), nil)
+	badRR := httptest.NewRecorder()
+	app.handleResource(badRR, badReq)
+	if badRR.Code != http.StatusUnauthorized {
+		t.Fatalf("未包含 data 的签名状态=%d 期望=%d", badRR.Code, http.StatusUnauthorized)
 	}
 }
 
