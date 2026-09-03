@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-BASE_URL="https://gitee.com/cocosnodejs/upload/raw/master/dist"
+BASE_URL="https://raw.githubusercontent.com/nanxiangwanwan/upload/master/dist"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 
 ARCH="$(uname -m)"
