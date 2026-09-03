@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const version = "1.5.0"
+const version = "1.6.0"
 
 const defaultEnvTemplate = `# ==========================================
 # 上传配置文件
@@ -31,9 +31,11 @@ const defaultEnvTemplate = `# ==========================================
 ADDR=:8080
 
 # MD5 签名密钥【必填】。
-# 上传签名：RESSIGN = md5(MD5_KEY + RESTIME)
+# 上传签名：RESSIGN = md5(MD5_KEY + RESTIME + RESDATA)
+# RESDATA = 可选业务数据，为空时保持 md5(MD5_KEY + RESTIME)
 # RESTIME = 上传请求时间（Unix 秒级时间戳）
-# 资源访问签名：RESSIGN = md5(MD5_KEY + RESTIME)
+# 资源访问签名：RESSIGN = md5(MD5_KEY + RESTIME + data)
+# data = 可选业务数据，为空时保持 md5(MD5_KEY + RESTIME)
 # RESTIME = 访问凭证过期时间（Unix 秒级时间戳）
 # 同一组 RESTIME + RESSIGN 在过期前可访问全部 /res/* 资源。
 MD5_KEY=请修改为你的密钥
@@ -182,13 +184,15 @@ func printConfigHelp() {
 
 上传 /upload：
   RESTIME   上传请求时间，Unix 秒级时间戳
+  RESDATA   可选业务数据；非空时参与签名
   RESPATH   上传目标目录，可选，例如 users/avatar
-  RESSIGN   md5(MD5_KEY + RESTIME)
+  RESSIGN   md5(MD5_KEY + RESTIME + RESDATA)
   校验      IP 白名单 + TIME_EXPIRE 时间误差 + 签名
 
 资源 /res/*：
   RESTIME   访问凭证的过期时间，Unix 秒级时间戳
-  RESSIGN   md5(MD5_KEY + RESTIME)
+  data      可选业务数据；非空时参与签名
+  RESSIGN   md5(MD5_KEY + RESTIME + data)
   校验      过期时间 + 签名；不校验 IP 白名单
   特点      同一组 RESTIME + RESSIGN 在过期前可访问全部 /res/* 资源
   参数      支持 Header RESTIME/RESSIGN，也支持 ?time=...&sign=...
@@ -350,9 +354,10 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	resTime := strings.TrimSpace(r.Header.Get("RESTIME"))
 	resSign := strings.TrimSpace(r.Header.Get("RESSIGN"))
+	resData := strings.TrimSpace(r.Header.Get("RESDATA"))
 	rawDir := strings.TrimSpace(r.Header.Get("RESPATH"))
 
-	if !a.verifyUploadSign(resTime, resSign) {
+	if !a.verifyUploadSign(resTime, resSign, resData) {
 		writeJSON(w, http.StatusUnauthorized, Response{Code: 401, Message: "签名无效或已过期"})
 		return
 	}
@@ -484,8 +489,9 @@ func (a *App) handleResource(w http.ResponseWriter, r *http.Request) {
 	if resSign == "" {
 		resSign = strings.TrimSpace(r.URL.Query().Get("sign"))
 	}
+	resData := strings.TrimSpace(r.URL.Query().Get("data"))
 
-	if err := a.verifyResourceSign(resTime, resSign); err != nil {
+	if err := a.verifyResourceSign(resTime, resSign, resData); err != nil {
 		if errors.Is(err, errResourceExpired) {
 			http.Error(w, "资源访问已过期", http.StatusUnauthorized)
 			return
@@ -503,7 +509,7 @@ func (a *App) handleResource(w http.ResponseWriter, r *http.Request) {
 }
 
 // verifyUploadSign 校验上传请求中的时间戳和签名是否在允许范围内。
-func (a *App) verifyUploadSign(ts, sign string) bool {
+func (a *App) verifyUploadSign(ts, sign, data string) bool {
 	if ts == "" || sign == "" {
 		return false
 	}
@@ -515,7 +521,7 @@ func (a *App) verifyUploadSign(ts, sign string) bool {
 	if unixTs < now-a.cfg.TimeExpire || unixTs > now+a.cfg.TimeExpire {
 		return false
 	}
-	expected := md5Hex(a.cfg.MD5Key + ts)
+	expected := md5Hex(a.cfg.MD5Key + ts + data)
 	return subtle.ConstantTimeCompare([]byte(strings.ToLower(expected)), []byte(strings.ToLower(sign))) == 1
 }
 
@@ -523,7 +529,7 @@ var errResourceExpired = errors.New("资源访问已过期")
 var errInvalidResourceSignature = errors.New("资源签名无效")
 
 // verifyResourceSign 校验资源访问凭证的过期时间和签名。
-func (a *App) verifyResourceSign(expireTs, sign string) error {
+func (a *App) verifyResourceSign(expireTs, sign, data string) error {
 	if expireTs == "" || sign == "" {
 		return errInvalidResourceSignature
 	}
@@ -534,7 +540,7 @@ func (a *App) verifyResourceSign(expireTs, sign string) error {
 	if time.Now().Unix() > unixTs {
 		return errResourceExpired
 	}
-	expected := md5Hex(a.cfg.MD5Key + expireTs)
+	expected := md5Hex(a.cfg.MD5Key + expireTs + data)
 	if subtle.ConstantTimeCompare([]byte(strings.ToLower(expected)), []byte(strings.ToLower(sign))) != 1 {
 		return errInvalidResourceSignature
 	}
