@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-VERSION="${VERSION:-1.5.0}"
+VERSION="${VERSION:-1.6.0}"
 rm -rf dist
 mkdir -p dist
 
