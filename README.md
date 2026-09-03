@@ -304,12 +304,12 @@ dist/upload-windows-amd64.exe
 dist/SHA256SUMS
 ```
 
-## Gitee 一键安装 / One-command install
+## GitHub 一键安装 / One-command install
 
 `install.sh` 直接从仓库 `master/dist` 下载 Linux 对应架构的二进制：
 
 ```bash
-curl -fsSL https://gitee.com/cocosnodejs/upload/raw/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/nanxiangwanwan/upload/master/install.sh | sh
 ```
 
 默认安装到：
