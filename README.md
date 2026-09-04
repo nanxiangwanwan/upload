@@ -169,6 +169,21 @@ curl -X POST 'http://127.0.0.1:8080/upload' \
 RESSIGN = md5(MD5_KEY + RESTIME + data)
 ```
 
+如果请求 URL 中出现 `path` 参数（参数值不重要），签名必须追加上传返回的完整资源路径：
+
+```text
+RESSIGN = md5(MD5_KEY + RESTIME + data + 资源完整路径)
+```
+
+例如上传返回路径 `/res/user/head/a.jpg`：
+
+```text
+RESSIGN=md5(MD5_KEY + RESTIME + data + "/res/user/head/a.jpg")
+/res/user/head/a.jpg?time=1786663600&data=user-1001&path=1&sign=xxxx
+```
+
+`path=1`、`path=abc` 和 `path=` 的效果相同；`path` 的值本身不参与签名。
+
 这里的 `RESTIME` 不是请求时间，而是：
 
 ```text
@@ -197,6 +212,7 @@ RESSIGN=md5(MD5_KEY + "1786663600" + "user-1001")
 - **不验证 IP 白名单**，客户端可直接访问。
 - 验证 `RESTIME` 是否过期。
 - `data` 是可选业务数据；非空时验证 `RESSIGN = md5(MD5_KEY + RESTIME + data)`。
+- URL 出现 `path` 参数时，验证 `RESSIGN = md5(MD5_KEY + RESTIME + data + 资源完整路径)`。
 - `TIME_EXPIRE` 不参与资源访问校验。
 - 同一组有效凭证可访问全部 `/res/*`。
 

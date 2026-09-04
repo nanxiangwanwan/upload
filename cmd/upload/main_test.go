@@ -300,6 +300,41 @@ func TestResourceSignatureIncludesData(t *testing.T) {
 	}
 }
 
+// TestResourceSignatureIncludesPathWhenRequested 验证出现 path 参数时签名绑定资源完整路径。
+func TestResourceSignatureIncludesPathWhenRequested(t *testing.T) {
+	root := t.TempDir()
+	app := testApp(root)
+	rel := "images/a.jpg"
+	publicPath := "/res/" + rel
+	abs := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(abs, []byte("image"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	expireTs := strconvFormatInt(time.Now().Add(time.Hour).Unix())
+	data := "user-1001"
+	sign := md5Hex(app.cfg.MD5Key + expireTs + data + publicPath)
+	for _, pathValue := range []string{"1", "anything", ""} {
+		req := httptest.NewRequest(http.MethodGet, publicPath+"?time="+expireTs+"&data="+data+"&path="+pathValue+"&sign="+sign, nil)
+		rr := httptest.NewRecorder()
+		app.handleResource(rr, req)
+		if rr.Code != http.StatusOK || rr.Body.String() != "image" {
+			t.Fatalf("path=%q 状态=%d 响应=%q", pathValue, rr.Code, rr.Body.String())
+		}
+	}
+
+	sharedSign := md5Hex(app.cfg.MD5Key + expireTs + data)
+	badReq := httptest.NewRequest(http.MethodGet, publicPath+"?time="+expireTs+"&data="+data+"&path=1&sign="+sharedSign, nil)
+	badRR := httptest.NewRecorder()
+	app.handleResource(badRR, badReq)
+	if badRR.Code != http.StatusUnauthorized {
+		t.Fatalf("未包含资源路径的签名状态=%d 期望=%d", badRR.Code, http.StatusUnauthorized)
+	}
+}
+
 // TestResourceRejectsPathBasedSignature 验证携带路径信息的签名会被拒绝。
 func TestResourceRejectsPathBasedSignature(t *testing.T) {
 	root := t.TempDir()

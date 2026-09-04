@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const version = "1.6.0"
+const version = "1.7.0"
 
 const defaultEnvTemplate = `# ==========================================
 # 上传配置文件
@@ -36,6 +36,8 @@ ADDR=:8080
 # RESTIME = 上传请求时间（Unix 秒级时间戳）
 # 资源访问签名：RESSIGN = md5(MD5_KEY + RESTIME + data)
 # data = 可选业务数据，为空时保持 md5(MD5_KEY + RESTIME)
+# URL 出现 path 参数时：RESSIGN = md5(MD5_KEY + RESTIME + data + 资源完整路径)
+# 资源完整路径就是上传返回的 path，例如 /res/users/avatar/a.jpg
 # RESTIME = 访问凭证过期时间（Unix 秒级时间戳）
 # 同一组 RESTIME + RESSIGN 在过期前可访问全部 /res/* 资源。
 MD5_KEY=请修改为你的密钥
@@ -193,6 +195,7 @@ func printConfigHelp() {
   RESTIME   访问凭证的过期时间，Unix 秒级时间戳
   data      可选业务数据；非空时参与签名
   RESSIGN   md5(MD5_KEY + RESTIME + data)
+  path      可选；只要出现该参数，签名末尾追加资源完整路径
   校验      过期时间 + 签名；不校验 IP 白名单
   特点      同一组 RESTIME + RESSIGN 在过期前可访问全部 /res/* 资源
   参数      支持 Header RESTIME/RESSIGN，也支持 ?time=...&sign=...
@@ -490,8 +493,12 @@ func (a *App) handleResource(w http.ResponseWriter, r *http.Request) {
 		resSign = strings.TrimSpace(r.URL.Query().Get("sign"))
 	}
 	resData := strings.TrimSpace(r.URL.Query().Get("data"))
+	signPath := ""
+	if _, exists := r.URL.Query()["path"]; exists {
+		signPath = "/res/" + cleanRel
+	}
 
-	if err := a.verifyResourceSign(resTime, resSign, resData); err != nil {
+	if err := a.verifyResourceSign(resTime, resSign, resData, signPath); err != nil {
 		if errors.Is(err, errResourceExpired) {
 			http.Error(w, "资源访问已过期", http.StatusUnauthorized)
 			return
@@ -529,7 +536,7 @@ var errResourceExpired = errors.New("资源访问已过期")
 var errInvalidResourceSignature = errors.New("资源签名无效")
 
 // verifyResourceSign 校验资源访问凭证的过期时间和签名。
-func (a *App) verifyResourceSign(expireTs, sign, data string) error {
+func (a *App) verifyResourceSign(expireTs, sign, data, resourcePath string) error {
 	if expireTs == "" || sign == "" {
 		return errInvalidResourceSignature
 	}
@@ -540,7 +547,7 @@ func (a *App) verifyResourceSign(expireTs, sign, data string) error {
 	if time.Now().Unix() > unixTs {
 		return errResourceExpired
 	}
-	expected := md5Hex(a.cfg.MD5Key + expireTs + data)
+	expected := md5Hex(a.cfg.MD5Key + expireTs + data + resourcePath)
 	if subtle.ConstantTimeCompare([]byte(strings.ToLower(expected)), []byte(strings.ToLower(sign))) != 1 {
 		return errInvalidResourceSignature
 	}
