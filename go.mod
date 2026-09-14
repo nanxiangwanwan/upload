@@ -1,3 +1,3 @@
-module gitee.com/cocosnodejs/upload
+module github.com/nanxiangwanwan/upload
 
 go 1.22
