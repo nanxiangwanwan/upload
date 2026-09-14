@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -34,12 +35,7 @@ func Proxy(w http.ResponseWriter, r *http.Request, resourceURL, resourcePath, md
 		resourcePath = "/" + resourcePath
 	}
 
-	ts := time.Now().Format("1136239445")
-	ts = strings.TrimLeft(ts, "0")
-	if ts == "" {
-		ts = "0"
-	}
-
+	ts := fmt.Sprintf("%d", time.Now().Unix())
 	sum := md5.Sum([]byte(md5Key + ts + resourcePath))
 	sign := hex.EncodeToString(sum[:])
 
