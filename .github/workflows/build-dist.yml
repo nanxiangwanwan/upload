@@ -6,6 +6,8 @@ on:
       - master
     paths:
       - "cmd/**"
+      - "proxy.go"
+      - "proxy_test.go"
       - "go.mod"
       - "build.sh"
       - ".github/workflows/build-dist.yml"
