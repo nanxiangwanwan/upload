@@ -237,3 +237,43 @@ dist/upload-darwin-arm64
 dist/upload-windows-amd64.exe
 dist/SHA256SUMS
 ```
+
+
+### 上传中转 / Upload proxy
+
+标准库：
+
+```go
+err := zupload.UploadProxy(
+    w,
+    r,
+    "http://127.0.0.1:8080/upload",
+    "users/avatar",
+    ".jpg,.png",
+    "5242880",
+    "your-md5-key",
+)
+```
+
+Gin：
+
+```go
+err := zupload.UploadProxy(
+    c.Writer,
+    c.Request,
+    "http://127.0.0.1:8080/upload",
+    "users/avatar",
+    ".jpg,.png",
+    "5242880",
+    "your-md5-key",
+)
+```
+
+函数会自动生成：
+
+```text
+RESTIME
+RESSIGN = md5(MD5_KEY + RESTIME + RESTYPE + RESSIZE)
+```
+
+并把 `path` 转成 `RESPATH` Header，前端上传的 multipart Body 会直接流式转发到资源服务器。
