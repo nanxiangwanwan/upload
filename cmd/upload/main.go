@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const version = "1.8.1"
+const version = "1.8.2"
 
 type App struct{ cfg Config }
 
@@ -24,7 +24,7 @@ type Response struct {
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		printConfigHelp()
+		printRouteList(".env")
 		return
 	}
 	switch args[0] {
@@ -91,4 +91,24 @@ func main() {
 	log.Printf("资源根目录: %s", cfg.Root)
 	log.Printf("默认最大上传大小: %d 字节", cfg.MaxUploadSize)
 	log.Fatal(server.ListenAndServe())
+}
+
+
+func printRouteList(configPath string) {
+	uploadPath := "/upload"
+	env, err := loadEnv(configPath)
+	if err == nil {
+		if p, e := resolveUploadPath(env); e == nil {
+			uploadPath = p
+		} else {
+			fmt.Printf("配置错误：%v\n\n", e)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		fmt.Printf("读取配置失败：%v\n\n", err)
+	}
+
+	fmt.Printf("go-upload v%s 路由列表\n\n", version)
+	fmt.Printf("%-16s 上传图片\n", uploadPath)
+	fmt.Printf("%-16s 资源路由\n", "/res/*")
+	fmt.Printf("%-16s 状态检查\n", "/health")
 }
