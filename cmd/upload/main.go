@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const version = "1.8.2"
+const version = "1.8.3"
 
 type App struct{ cfg Config }
 
@@ -24,7 +24,7 @@ type Response struct {
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		printRouteList(".env")
+		printOverview(".env")
 		return
 	}
 	switch args[0] {
@@ -48,7 +48,7 @@ func main() {
 	case "start":
 		args = args[1:]
 	default:
-		printConfigHelp()
+		printOverview(".env")
 		return
 	}
 
@@ -111,4 +111,22 @@ func printRouteList(configPath string) {
 	fmt.Printf("%-16s 上传图片\n", uploadPath)
 	fmt.Printf("%-16s 资源路由\n", "/res/*")
 	fmt.Printf("%-16s 状态检查\n", "/health")
+}
+
+
+func printOverview(configPath string) {
+	printRouteList(configPath)
+	fmt.Println()
+	printCommandHelp()
+	fmt.Println()
+	printConfigHelp()
+}
+
+func printCommandHelp() {
+	fmt.Printf("go-upload v%s 命令列表\n\n", version)
+	fmt.Printf("%-28s %s\n", "upload", "显示路由、命令和配置说明")
+	fmt.Printf("%-28s %s\n", "upload start [-config .env]", "启动服务")
+	fmt.Printf("%-28s %s\n", "upload config", "显示配置说明")
+	fmt.Printf("%-28s %s\n", "upload init [文件路径]", "生成默认配置文件")
+	fmt.Printf("%-28s %s\n", "upload version", "查看版本")
 }
