@@ -1,6 +1,6 @@
 # go-upload
 
-**Version: v1.8.0**
+**Version: v1.8.1**
 
 轻量 Go 文件上传 + 带签名静态资源服务器。
 
