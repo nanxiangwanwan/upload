@@ -1,6 +1,6 @@
 # go-upload
 
-**Version: v1.8.2**
+**Version: v1.8.3**
 
 轻量 Go 文件上传 + 带签名静态资源服务器。
 
@@ -290,7 +290,7 @@ upload
 会读取当前目录的 `.env`，并显示实际路由：
 
 ```text
-go-upload v1.8.2 路由列表
+go-upload v1.8.3 路由列表
 
 /upload          上传图片
 /res/*           资源路由
@@ -298,3 +298,33 @@ go-upload v1.8.2 路由列表
 ```
 
 如果 `UPLOAD_PATH` 配置为其他路径，上传路由会显示配置后的真实路径。
+
+
+## 无参数命令输出
+
+直接执行：
+
+```bash
+upload
+```
+
+会依次打印：
+
+```text
+go-upload v1.8.3 路由列表
+
+/upload          上传图片
+/res/*           资源路由
+/health          状态检查
+
+go-upload v1.8.3 命令列表
+
+upload                       显示路由、命令和配置说明
+upload start [-config .env]  启动服务
+upload config                显示配置说明
+upload init [文件路径]        生成默认配置文件
+upload version               查看版本
+
+go-upload v1.8.3 配置参数说明
+...
+```
