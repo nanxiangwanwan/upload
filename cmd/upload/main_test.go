@@ -114,3 +114,22 @@ func TestSafeTarget(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+
+func TestResolveUploadPath(t *testing.T) {
+	p, err := resolveUploadPath(map[string]string{"UPLOAD_PATH": "file/upload"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p != "/file/upload" {
+		t.Fatalf("path=%q", p)
+	}
+
+	p, err = resolveUploadPath(map[string]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p != "/upload" {
+		t.Fatalf("default path=%q", p)
+	}
+}
