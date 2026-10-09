@@ -114,16 +114,9 @@ func buildConfig(env map[string]string) (Config, error) {
 		}
 		expire = n
 	}
-	uploadPath := strings.TrimSpace(env["UPLOAD_PATH"])
-	if uploadPath == "" {
-		uploadPath = "/upload"
-	}
-	if !strings.HasPrefix(uploadPath, "/") {
-		uploadPath = "/" + uploadPath
-	}
-	uploadPath = filepath.ToSlash(filepath.Clean(uploadPath))
-	if uploadPath == "/" || uploadPath == "/health" || uploadPath == "/res" || strings.HasPrefix(uploadPath, "/res/") {
-		return Config{}, errors.New("UPLOAD_PATH 不能使用 /、/health、/res 或 /res/*")
+	uploadPath, err := resolveUploadPath(env)
+	if err != nil {
+		return Config{}, err
 	}
 
 	types, all := parseTypes(env["UPLOAD_TYPES"])
@@ -200,4 +193,20 @@ func loadEnv(p string) (map[string]string, error) {
 		out[k] = v
 	}
 	return out, nil
+}
+
+
+func resolveUploadPath(env map[string]string) (string, error) {
+	uploadPath := strings.TrimSpace(env["UPLOAD_PATH"])
+	if uploadPath == "" {
+		uploadPath = "/upload"
+	}
+	if !strings.HasPrefix(uploadPath, "/") {
+		uploadPath = "/" + uploadPath
+	}
+	uploadPath = filepath.ToSlash(filepath.Clean(uploadPath))
+	if uploadPath == "/" || uploadPath == "/health" || uploadPath == "/res" || strings.HasPrefix(uploadPath, "/res/") {
+		return "", errors.New("UPLOAD_PATH 不能使用 /、/health、/res 或 /res/*")
+	}
+	return uploadPath, nil
 }
