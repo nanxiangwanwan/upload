@@ -1,6 +1,6 @@
 # go-upload
 
-**Version: v1.8.1**
+**Version: v1.8.2**
 
 轻量 Go 文件上传 + 带签名静态资源服务器。
 
@@ -277,3 +277,24 @@ RESSIGN = md5(MD5_KEY + RESTIME + RESTYPE + RESSIZE)
 ```
 
 并把 `path` 转成 `RESPATH` Header，前端上传的 multipart Body 会直接流式转发到资源服务器。
+
+
+## 路由列表
+
+直接执行：
+
+```bash
+upload
+```
+
+会读取当前目录的 `.env`，并显示实际路由：
+
+```text
+go-upload v1.8.2 路由列表
+
+/upload          上传图片
+/res/*           资源路由
+/health          状态检查
+```
+
+如果 `UPLOAD_PATH` 配置为其他路径，上传路由会显示配置后的真实路径。
