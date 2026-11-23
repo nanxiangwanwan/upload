@@ -133,3 +133,62 @@ func TestResolveUploadPath(t *testing.T) {
 		t.Fatalf("default path=%q", p)
 	}
 }
+
+
+func TestUploadFileNameAndOverwrite(t *testing.T) {
+	root := t.TempDir()
+	app := testApp(root)
+
+	ts := nowString()
+	sign := md5Hex(app.cfg.MD5Key + ts)
+
+	req1 := newUploadRequest(t, "origin.jpg", []byte("first"), ts, sign, "images")
+	req1.Header.Set("FILE_NAME", "fixed.jpg")
+	rr1 := httptest.NewRecorder()
+	app.handleUpload(rr1, req1)
+	if rr1.Code != http.StatusOK {
+		t.Fatalf("first status=%d body=%s", rr1.Code, rr1.Body.String())
+	}
+
+	target := filepath.Join(root, "images", "fixed.jpg")
+	b, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "first" {
+		t.Fatalf("first content=%q", string(b))
+	}
+
+	req2 := newUploadRequest(t, "origin.jpg", []byte("second"), ts, sign, "images")
+	req2.Header.Set("FILE_NAME", "fixed.jpg")
+	rr2 := httptest.NewRecorder()
+	app.handleUpload(rr2, req2)
+	if rr2.Code != http.StatusOK {
+		t.Fatalf("second status=%d body=%s", rr2.Code, rr2.Body.String())
+	}
+
+	b, err = os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "second" {
+		t.Fatalf("overwrite content=%q", string(b))
+	}
+}
+
+func TestUploadRejectsUnsafeFileName(t *testing.T) {
+	root := t.TempDir()
+	app := testApp(root)
+
+	ts := nowString()
+	sign := md5Hex(app.cfg.MD5Key + ts)
+
+	req := newUploadRequest(t, "a.jpg", []byte("x"), ts, sign, "images")
+	req.Header.Set("FILE_NAME", "../x.jpg")
+	rr := httptest.NewRecorder()
+	app.handleUpload(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+}
