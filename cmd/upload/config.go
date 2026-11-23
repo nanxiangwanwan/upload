@@ -61,6 +61,7 @@ Header:
   RESPATH  可选上传目录
   RESTYPE  可选，本次允许的扩展名列表；覆盖 UPLOAD_TYPES
   RESSIZE  可选，本次最大字节数；覆盖 MAX_UPLOAD_SIZE
+  FILE_NAME 可选，指定最终资源文件名；不参与签名；同名文件直接覆盖
 
 REQUIRE_TYPE_SIZE=true 时，RESTYPE 和 RESSIZE 必须同时携带。
 
