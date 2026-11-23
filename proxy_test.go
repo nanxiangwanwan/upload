@@ -12,7 +12,7 @@ import (
 )
 
 func TestUploadProxy(t *testing.T) {
-	var gotRESTIME, gotRESSIGN, gotRESPATH, gotRESTYPE, gotRESSIZE string
+	var gotRESTIME, gotRESSIGN, gotRESPATH, gotRESTYPE, gotRESSIZE, gotFileName string
 	var gotBody []byte
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -21,6 +21,7 @@ func TestUploadProxy(t *testing.T) {
 		gotRESPATH = r.Header.Get("RESPATH")
 		gotRESTYPE = r.Header.Get("RESTYPE")
 		gotRESSIZE = r.Header.Get("RESSIZE")
+		gotFileName = r.Header.Get("FILE_NAME")
 		gotBody, _ = io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -39,6 +40,7 @@ func TestUploadProxy(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/proxy-upload", &body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("FILE_NAME", "fixed.jpg")
 	rr := httptest.NewRecorder()
 
 	const key = "secret"
@@ -51,8 +53,8 @@ func TestUploadProxy(t *testing.T) {
 	if rr.Code != http.StatusCreated {
 		t.Fatalf("status=%d", rr.Code)
 	}
-	if gotRESPATH != "users/avatar" || gotRESTYPE != resType || gotRESSIZE != resSize {
-		t.Fatalf("headers path=%q type=%q size=%q", gotRESPATH, gotRESTYPE, gotRESSIZE)
+	if gotRESPATH != "users/avatar" || gotRESTYPE != resType || gotRESSIZE != resSize || gotFileName != "fixed.jpg" {
+		t.Fatalf("headers path=%q type=%q size=%q file_name=%q", gotRESPATH, gotRESTYPE, gotRESSIZE, gotFileName)
 	}
 	sum := md5.Sum([]byte(key + gotRESTIME + resType + resSize))
 	wantSign := hex.EncodeToString(sum[:])
