@@ -1,6 +1,6 @@
 # go-upload
 
-**Version: v1.8.3**
+**Version: v1.8.4**
 
 轻量 Go 文件上传 + 带签名静态资源服务器。
 
@@ -54,6 +54,7 @@ RESSIGN: 签名
 RESPATH: 可选上传目录
 RESTYPE: 可选类型规则
 RESSIZE: 可选最大字节数
+FILE_NAME: 可选最终资源文件名，不参与签名；同名资源存在时覆盖
 ```
 
 `RESDATA` 已从上传接口删除。
@@ -290,7 +291,7 @@ upload
 会读取当前目录的 `.env`，并显示实际路由：
 
 ```text
-go-upload v1.8.3 路由列表
+go-upload v1.8.4 路由列表
 
 /upload          上传图片
 /res/*           资源路由
@@ -311,13 +312,13 @@ upload
 会依次打印：
 
 ```text
-go-upload v1.8.3 路由列表
+go-upload v1.8.4 路由列表
 
 /upload          上传图片
 /res/*           资源路由
 /health          状态检查
 
-go-upload v1.8.3 命令列表
+go-upload v1.8.4 命令列表
 
 upload                       显示路由、命令和配置说明
 upload start [-config .env]  启动服务
@@ -325,6 +326,48 @@ upload config                显示配置说明
 upload init [文件路径]        生成默认配置文件
 upload version               查看版本
 
-go-upload v1.8.3 配置参数说明
+go-upload v1.8.4 配置参数说明
 ...
+```
+
+
+## FILE_NAME
+
+上传时可以额外携带：
+
+```text
+FILE_NAME: avatar.jpg
+```
+
+规则：
+
+- `FILE_NAME` 不参与签名验证。
+- 上传签名仍然是：
+
+```text
+md5(MD5_KEY + RESTIME + RESTYPE + RESSIZE)
+```
+
+- 如果传了 `FILE_NAME`，资源直接使用该名称保存。
+- 同一 `RESPATH` 下已经存在同名文件时，直接覆盖。
+- 没传 `FILE_NAME` 时，继续使用随机文件名。
+- `FILE_NAME` 只能是文件名，不能包含 `/`、`\\` 或 `../` 等目录路径。
+- 文件类型校验按最终保存文件名的扩展名判断。
+- `UploadProxy` 会自动透传调用方请求中的 `FILE_NAME` Header。
+
+示例：
+
+```bash
+curl -X POST 'http://127.0.0.1:8080/upload' \
+  -H "RESTIME: ${RESTIME}" \
+  -H "RESSIGN: ${RESSIGN}" \
+  -H "RESPATH: users/avatar" \
+  -H "FILE_NAME: avatar.jpg" \
+  -F 'file=@./photo.jpg'
+```
+
+最终资源：
+
+```text
+/res/users/avatar/avatar.jpg
 ```
