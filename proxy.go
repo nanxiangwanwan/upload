@@ -124,6 +124,9 @@ func UploadProxy(w http.ResponseWriter, r *http.Request, uploadURL, resourcePath
 	if resSize != "" {
 		req.Header.Set("RESSIZE", resSize)
 	}
+	if fileName := strings.TrimSpace(r.Header.Get("FILE_NAME")); fileName != "" {
+		req.Header.Set("FILE_NAME", fileName)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
