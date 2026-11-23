@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const version = "1.8.3"
+const version = "1.8.4"
 
 type App struct{ cfg Config }
 
