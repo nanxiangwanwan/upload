@@ -31,6 +31,7 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	resType := strings.TrimSpace(r.Header.Get("RESTYPE"))
 	resSize := strings.TrimSpace(r.Header.Get("RESSIZE"))
 	rawDir := strings.TrimSpace(r.Header.Get("RESPATH"))
+	fileName := strings.TrimSpace(r.Header.Get("FILE_NAME"))
 
 	if a.cfg.RequireTypeSize && (resType == "" || resSize == "") {
 		writeJSON(w, http.StatusBadRequest, Response{Code: 400, Message: "RESTYPE 和 RESSIZE 必须同时携带"})
@@ -81,7 +82,21 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	ext := strings.ToLower(filepath.Ext(filepath.Base(header.Filename)))
+	name := ""
+	if fileName != "" {
+		var nameErr error
+		name, nameErr = safeFileName(fileName)
+		if nameErr != nil {
+			writeJSON(w, http.StatusBadRequest, Response{Code: 400, Message: "FILE_NAME 文件名无效"})
+			return
+		}
+	}
+
+	checkName := header.Filename
+	if name != "" {
+		checkName = name
+	}
+	ext := strings.ToLower(filepath.Ext(filepath.Base(checkName)))
 	if !allowAll && !uploadTypes[ext] {
 		writeJSON(w, http.StatusBadRequest, Response{Code: 400, Message: "文件类型不允许"})
 		return
@@ -100,10 +115,12 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, Response{Code: 500, Message: "创建目标目录失败"})
 		return
 	}
-	name, err := randomFileName(ext)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, Response{Code: 500, Message: "生成文件名失败"})
-		return
+	if name == "" {
+		name, err = randomFileName(ext)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, Response{Code: 500, Message: "生成文件名失败"})
+			return
+		}
 	}
 	cleanRel := filepath.ToSlash(filepath.Join(cleanDir, name))
 	target := filepath.Join(absDir, name)
@@ -167,4 +184,16 @@ func saveLimited(target string, src multipart.File, max int64) (int64, error) {
 func md5Hex(s string) string {
 	sum := md5.Sum([]byte(s))
 	return hex.EncodeToString(sum[:])
+}
+
+
+func safeFileName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || name == "." || name == ".." {
+		return "", errors.New("文件名不能为空")
+	}
+	if strings.ContainsAny(name, "/\\") || filepath.Base(name) != name {
+		return "", errors.New("FILE_NAME 只能是文件名，不能包含目录")
+	}
+	return name, nil
 }
